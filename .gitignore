@@ -1,41 +1,74 @@
-# Compiled Lua sources
-luac.out
 
-# luarocks build files
-*.src.rock
-*.zip
-*.tar.gz
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 
-# Object files
-*.o
-*.os
-*.ko
-*.obj
-*.elf
+local lineColor = Color3.fromRGB(0, 191, 255) -- Neon sky blue color for the line (RGB: 0, 191, 255)
+local lineThickness = 0.2 -- Thickness of the line in studs
+local lineHeight = 2 -- Height of the line above the ground
+local lineDuration = 1 -- Duration in seconds to display the line
+local lineTransparency = 0.5 -- Transparency of the line (0 = opaque, 1 = fully transparent)
 
-# Precompiled Headers
-*.gch
-*.pch
+local playerLines = {}
 
-# Libraries
-*.lib
-*.a
-*.la
-*.lo
-*.def
-*.exp
+local function createGlowingLine(player, startPosition, endPosition)
+    local line = playerLines[player]
+    if not line then
+        line = Instance.new("Model")
+        line.Name = player.Name .. "_MovementLine"
+        line.Parent = game.Workspace
+        playerLines[player] = line
+    end
+    
+    local direction = (endPosition - startPosition).unit
+    local distance = (endPosition - startPosition).magnitude
+    local segments = math.floor(distance / lineThickness)
+    local increment = distance / segments
 
-# Shared objects (inc. Windows DLLs)
-*.dll
-*.so
-*.so.*
-*.dylib
+    local part = Instance.new("Part")
+    part.Anchored = true
+    part.Size = Vector3.new(lineThickness, lineThickness, distance)
+    part.CFrame = CFrame.new(startPosition, endPosition) * CFrame.new(0, -lineHeight, -distance / 2) -- Adjusted height here
+    part.Color = lineColor
+    part.Transparency = lineTransparency -- Adjust transparency if needed
+    part.Material = Enum.Material.Neon -- Neon material for glowing effect
+    part.CanCollide = false
+    part.Parent = line
+    
+    spawn(function()
+        wait(lineDuration)
+        part:Destroy()
+    end)
+end
 
-# Executables
-*.exe
-*.out
-*.app
-*.i*86
-*.x86_64
-*.hex
+local function handlePlayerMovement(player)
+    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        local rootPart = player.Character.HumanoidRootPart
+        local previousPosition = playerLines[player] and playerLines[player]:FindFirstChild("SegmentEnd") or rootPart.Position
+        
+        wait(0.1)
+        
+        local currentPosition = rootPart.Position
+        if (currentPosition - previousPosition).magnitude >= lineThickness then
+            createGlowingLine(player, previousPosition, currentPosition) -- Create a glowing line between previous and current positions
+        end
+        
+        if playerLines[player] then
+            local segmentEnd = playerLines[player]:FindFirstChild("SegmentEnd")
+            if segmentEnd then
+                segmentEnd.Position = currentPosition
+            end
+        end
+    end
+end
 
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function(character)
+        character:WaitForChild("HumanoidRootPart")
+        handlePlayerMovement(player)
+    end)
+end)
+
+RunService.Stepped:Connect(function()
+    for _, player in ipairs(Players:GetPlayers()) do
+        handlePlayerMovement(player)
+    end
